@@ -45,6 +45,10 @@ class MTProtoScraper:
         "https://raw.githubusercontent.com/parsashahid/mtproto-proxy-list/main/proxies.json",
         "https://raw.githubusercontent.com/aliilaproxy/mtproto-proxy-list/main/proxies.json",
         "https://raw.githubusercontent.com/Mohammadgb0078/MTProtoProxy/main/proxies.json",
+        # GitHub text lists
+        "https://raw.githubusercontent.com/SoliSpirit/mtproto/master/all_proxies.txt",
+        "https://raw.githubusercontent.com/mtgproxy/mtproto-proxy-list/main/proxies.txt",
+        "https://raw.githubusercontent.com/parsashahid/mtproto-proxy-list/main/proxies.txt",
         # GitHub README files
         "https://raw.githubusercontent.com/ProxyForTelegram/MTProto/master/README.md",
         "https://raw.githubusercontent.com/iamahak/mtproto-proxy/master/README.md",
@@ -55,9 +59,8 @@ class MTProtoScraper:
         "https://raw.githubusercontent.com/mtproto-proxy/mtproto-proxy-list/master/README.md",
         "https://raw.githubusercontent.com/telegrammtproto/mtproto-proxy/main/README.md",
         "https://raw.githubusercontent.com/mtprotoproxy/mtproxy/master/README.md",
-        # Text lists
-        "https://raw.githubusercontent.com/mtgproxy/mtproto-proxy-list/main/proxies.txt",
-        "https://raw.githubusercontent.com/parsashahid/mtproto-proxy-list/main/proxies.txt",
+        # Web pages
+        "https://mtpro.xyz/mtproto-ru",
     ]
     
     # MTProto proxy patterns
@@ -66,10 +69,12 @@ class MTProtoScraper:
         re.compile(r'tg://proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s"]+)', re.IGNORECASE),
         # https://t.me/proxy format  
         re.compile(r'https?://t\.me/proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s"]+)', re.IGNORECASE),
-        # Direct format: server:port:secret (hex secret)
+        # Direct format: server:port:secret (hex secret) - SoliSpirit format
         re.compile(r'(?P<server>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9.-]+):(?P<port>\d{2,5}):(?P<secret>[a-fA-F0-9]{32,})'),
         # Direct format with dd prefix
         re.compile(r'(?P<server>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9.-]+):(?P<port>\d{2,5}):(?P<secret>dd[a-fA-F0-9]+)'),
+        # Direct format with ee prefix
+        re.compile(r'(?P<server>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9.-]+):(?P<port>\d{2,5}):(?P<secret>ee[a-fA-F0-9]+)'),
         # Markdown link format
         re.compile(r'\[.*?\]\(tg://proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s)]+)', re.IGNORECASE),
         re.compile(r'\[.*?\]\(https?://t\.me/proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s)]+)', re.IGNORECASE),
