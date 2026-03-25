@@ -11,61 +11,55 @@ from aiohttp_socks import ProxyConnector
 class ProxyTester:
     """Tests SOCKS5 proxies for functionality and measures response time."""
     
-    # Test URLs - use fast endpoints
     TEST_URLS = [
         "https://api.ipify.org?format=json",
         "https://httpbin.org/ip",
     ]
     
-    # Reduced timeout for faster testing
     TIMEOUT = 5
     
     def __init__(self, max_concurrent: int = 100):
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
+        self._session = None
+    
+    async def _get_session(self):
+        """Get or create aiohttp session."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+    
+    async def close(self):
+        """Close aiohttp session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
     
     async def test_proxy(
         self, 
-        proxy: Dict, 
-        test_url: Optional[str] = None
+        proxy: Dict
     ) -> Tuple[bool, float]:
-        """
-        Test proxy with single fast request.
-        """
-        url = test_url or self.TEST_URLS[0]
+        """Test single proxy with timeout."""
+        ip = proxy['ip']
+        port = proxy['port']
+        start_time = time.time()
         
-        async with self.semaphore:
-            start_time = time.time()
-            
-            try:
-                connector = ProxyConnector.from_url(f"socks5://{proxy['ip']}:{proxy['port']}")
+        try:
+            async with self.semaphore:
+                connector = ProxyConnector.from_url(f"socks5://{ip}:{port}")
                 
                 async with aiohttp.ClientSession(connector=connector) as session:
-                    async with session.get(
-                        url,
-                        timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
-                    ) as response:
+                    request = session.get(self.TEST_URLS[0], timeout=aiohttp.ClientTimeout(total=self.TIMEOUT))
+                    response = await asyncio.wait_for(request, timeout=self.TIMEOUT + 1)
+                    
+                    async with response:
                         if response.status == 200:
+                            await response.read()
                             elapsed = (time.time() - start_time) * 1000
                             return True, round(elapsed, 2)
-                
-                return False, float('inf')
-                        
-            except Exception:
-                return False, float('inf')
-    
-    async def test_proxy_with_retry(
-        self, 
-        proxy: Dict,
-        retries: int = 1
-    ) -> Tuple[bool, float]:
-        """Test proxy with minimal retries."""
-        for i in range(retries + 1):
-            test_url = self.TEST_URLS[i % len(self.TEST_URLS)]
-            is_working, response_time = await self.test_proxy(proxy, test_url)
-            
-            if is_working:
-                return True, response_time
+        except asyncio.TimeoutError:
+            pass
+        except Exception:
+            pass
         
         return False, float('inf')
     
@@ -74,29 +68,39 @@ class ProxyTester:
         proxies: List[Dict],
         callback=None
     ) -> List[Dict]:
-        """Test multiple proxies concurrently."""
+        """Test multiple proxies concurrently with batch processing."""
         working_proxies = []
+        batch_size = 100  # Smaller batches to avoid blocking
         
-        async def test_with_callback(proxy: Dict) -> Optional[Dict]:
-            is_working, response_time = await self.test_proxy_with_retry(proxy)
+        for i in range(0, len(proxies), batch_size):
+            batch = proxies[i:i + batch_size]
             
-            if callback:
-                await callback(proxy, is_working, response_time)
+            async def test_with_callback(proxy: Dict) -> Optional[Dict]:
+                is_working, response_time = await self.test_proxy(proxy)
+                
+                if callback:
+                    await callback(proxy, is_working, response_time)
+                
+                if is_working:
+                    result = proxy.copy()
+                    result['response_time'] = response_time
+                    result['last_checked'] = time.time()
+                    return result
+                return None
             
-            if is_working:
-                result = proxy.copy()
-                result['response_time'] = response_time
-                result['last_checked'] = time.time()
-                return result
+            tasks = [test_with_callback(proxy) for proxy in batch]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            return None
-        
-        tasks = [test_with_callback(proxy) for proxy in proxies]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        for result in results:
-            if isinstance(result, dict):
-                working_proxies.append(result)
+            for result in results:
+                if isinstance(result, dict):
+                    working_proxies.append(result)
+                elif isinstance(result, Exception) and callback:
+                    # Log unexpected errors
+                    pass
+            
+            # Small delay between batches to prevent blocking
+            if i + batch_size < len(proxies):
+                await asyncio.sleep(0.2)
         
         return working_proxies
     
