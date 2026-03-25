@@ -76,17 +76,19 @@ async def main():
     # Setup update callback
     async def on_update(count):
         logger.info(f"✅ Proxy update complete: {count} working proxies found")
-    
+
     manager.set_update_callback(on_update)
-    
+
     # Start the manager (begins scheduled updates)
     manager.start()
     logger.info(f"📡 Proxy manager started (updates every {config['update_interval']} min)")
-    
-    # Run initial debug update
-    logger.info("🔍 Running initial debug update...")
-    await manager.update(debug=True)
-    
+
+    # Load cached proxies (no automatic update at startup)
+    if manager.load_from_cache():
+        logger.info(f"📦 Loaded {len(manager.working_proxies)} proxies from cache")
+    else:
+        logger.info("📭 No cached proxies found")
+
     # Create and start bot
     bot = ProxyBot(
         token=config['token'],

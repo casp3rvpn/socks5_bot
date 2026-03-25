@@ -173,9 +173,6 @@ class ProxyManager:
     
     def start(self):
         """Start the scheduler."""
-        # Load cached proxies first
-        self.load_from_cache()
-        
         # Schedule regular updates
         self.scheduler.add_job(
             self.update,
@@ -183,11 +180,8 @@ class ProxyManager:
             id='proxy_update',
             replace_existing=True
         )
-        
+
         self.scheduler.start()
-        
-        # Run initial update
-        asyncio.create_task(self.update())
     
     def stop(self):
         """Stop the scheduler."""
