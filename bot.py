@@ -56,10 +56,6 @@ class ProxyBot:
                 await message.answer("⛔ Access denied.")
                 return
 
-            if self.manager.is_updating:
-                await message.answer("⏳ Currently updating proxies, please wait...")
-                return
-
             if not self.manager.working_proxies:
                 await message.answer(
                     "⚠️ No working SOCKS5 proxies available yet.\n"
@@ -82,10 +78,6 @@ class ProxyBot:
             """Handle /mtproto command - return best MTProto proxies."""
             if not self._is_allowed(message.from_user.id):
                 await message.answer("⛔ Access denied.")
-                return
-
-            if self.manager.is_updating:
-                await message.answer("⏳ Currently updating proxies, please wait...")
                 return
 
             if not self.manager.working_mtproto:
