@@ -46,8 +46,34 @@ ALLOWED_USERS=123456789,987654321
 
 ### 4. Run
 
+**Option A: Manual run**
+
 ```bash
 python main.py
+```
+
+**Option B: Install as systemd service (Ubuntu/Debian)**
+
+```bash
+# Install as system service
+sudo ./install_service.sh
+
+# Edit configuration
+sudo nano /opt/socks5-bot/.env
+
+# Restart service
+sudo systemctl restart socks5-bot
+
+# View logs
+sudo journalctl -u socks5-bot -f
+```
+
+**Option C: Using screen/tmux**
+
+```bash
+screen -S socks5-bot
+python main.py
+# Press Ctrl+A, then D to detach
 ```
 
 ## Bot Commands
@@ -125,6 +151,34 @@ Click on 'Connect' button to auto-add to Telegram
 ├── requirements.txt     # Python dependencies
 ├── .env.example         # Configuration template
 └── README.md            # This file
+```
+
+## Service Management (Ubuntu)
+
+If installed as a systemd service:
+
+```bash
+# Check status
+sudo systemctl status socks5-bot
+
+# View logs
+sudo journalctl -u socks5-bot -f
+sudo tail -f /var/log/socks5-bot/bot.log
+
+# Stop service
+sudo systemctl stop socks5-bot
+
+# Start service
+sudo systemctl start socks5-bot
+
+# Restart service
+sudo systemctl restart socks5-bot
+
+# Disable service
+sudo systemctl disable socks5-bot
+
+# Uninstall completely
+sudo ./uninstall_service.sh
 ```
 
 ## Configuration Options
