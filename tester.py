@@ -57,8 +57,13 @@ class ProxyTester:
                             elapsed = (time.time() - start_time) * 1000  # ms
                             return True, round(elapsed, 2)
                         
-            except Exception:
-                pass
+            except asyncio.TimeoutError:
+                return False, float('inf')
+            except Exception as e:
+                # Log specific errors for debugging
+                import logging
+                logging.debug(f"Proxy {proxy['ip']}:{proxy['port']} failed: {type(e).__name__}")
+                return False, float('inf')
             
             return False, float('inf')
     

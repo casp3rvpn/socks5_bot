@@ -83,6 +83,10 @@ async def main():
     manager.start()
     logger.info(f"📡 Proxy manager started (updates every {config['update_interval']} min)")
     
+    # Run initial debug update
+    logger.info("🔍 Running initial debug update...")
+    await manager.update(debug=True)
+    
     # Create and start bot
     bot = ProxyBot(
         token=config['token'],

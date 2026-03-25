@@ -160,26 +160,26 @@ class ProxyScraper:
         
         return proxies
     
-    async def scrape_all(self) -> List[Dict]:
+    async def scrape_all(self, debug: bool = False) -> List[Dict]:
         """Scrape proxies from all sources."""
         all_proxies = []
         
         async with aiohttp.ClientSession() as session:
             tasks = []
+            urls = self.SOURCES + self.SCRAPE_URLS
             
-            # Add raw list URLs
-            for url in self.SOURCES:
-                tasks.append(self.scrape_source(session, url))
-            
-            # Add scrape URLs
-            for url in self.SCRAPE_URLS:
+            for url in urls:
                 tasks.append(self.scrape_source(session, url))
             
             results = await asyncio.gather(*tasks, return_exceptions=True)
             
-            for result in results:
+            for i, result in enumerate(results):
                 if isinstance(result, list):
+                    if debug:
+                        print(f"  {urls[i]}: found {len(result)} proxies")
                     all_proxies.extend(result)
+                elif debug and isinstance(result, Exception):
+                    print(f"  {urls[i]}: error - {result}")
         
         # Remove duplicates
         seen = set()
@@ -189,6 +189,9 @@ class ProxyScraper:
             if key not in seen:
                 seen.add(key)
                 unique_proxies.append(proxy)
+        
+        if debug:
+            print(f"Total unique proxies: {len(unique_proxies)}")
         
         return unique_proxies
     
