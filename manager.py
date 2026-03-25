@@ -212,40 +212,34 @@ class ProxyManager:
     def format_proxies_for_telegram(self, count: int = 5) -> str:
         """
         Format best proxies for Telegram client import.
-        Returns formatted text with proxy links.
+        Returns formatted text with proxy details.
         """
         best = self.get_best_proxies(count)
 
         if not best:
             return "❌ No working proxies available at the moment."
 
-        import urllib.parse
-        
         lines = [
             "🔥 <b>Best SOCKS5 Proxies</b> (lowest latency):\n",
-            f"⏱ Updated: {self.get_stats()['last_update_str']}\n"
+            f"⏱ Updated: {self.get_stats()['last_update_str']}\n\n",
+            "<b>How to configure:</b>\n",
+            "Settings > Advanced > Connection type > Use custom proxy > SOCKS5\n\n"
         ]
 
         for i, proxy in enumerate(best, 1):
             response_time = proxy.get('response_time', 0)
-            proxy_url = f"socks5://{proxy['ip']}:{proxy['port']}"
-            encoded_url = urllib.parse.quote(proxy_url, safe='')
-
-            # Telegram proxy link format
-            tg_link = f"tg://proxy?url={encoded_url}"
-
             lines.append(
-                f"{i}. ⚡ <b>{response_time}ms</b> - "
-                f"<code>{proxy['ip']}:{proxy['port']}</code>\n"
-                f"   <a href='{tg_link}'>📲 Add to Telegram</a>\n"
+                f"{i}. ⚡ <b>{response_time}ms</b>\n"
+                f"   <code>Host: {proxy['ip']}</code>\n"
+                f"   <code>Port: {proxy['port']}</code>\n"
             )
-        
+
         lines.append(
-            "\n💡 <i>Click 'Add to Telegram' to automatically configure "
-            "the proxy in your Telegram client.</i>"
+            "\n💡 <i>Click on any proxy button to see details.</i>\n"
+            "📋 Copy host and port manually to Telegram settings."
         )
-        
-        return "\n".join(lines)
+
+        return "".join(lines)
 
 
 async def demo_manager():

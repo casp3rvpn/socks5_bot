@@ -2,7 +2,6 @@
 Telegram bot for SOCKS5 proxy distribution.
 """
 import asyncio
-import urllib.parse
 from typing import Optional
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -139,23 +138,54 @@ class ProxyBot:
             if not self._is_allowed(message.from_user.id):
                 await message.answer("⛔ Access denied.")
                 return
-            
+
             best = self.manager.get_best_proxies(10)
-            
+
             if not best:
                 await message.answer("No proxies available.")
                 return
-            
+
             raw_list = "\n".join([
                 f"{p['ip']}:{p['port']} - {p.get('response_time', 0)}ms"
                 for p in best
             ])
-            
+
             await message.answer(
                 f"<b>Raw proxy list:</b>\n\n"
                 f"<code>{raw_list}</code>",
                 parse_mode="HTML"
             )
+
+        @self.dp.callback_query()
+        async def handle_callback(callback: types.CallbackQuery):
+            """Handle inline button callbacks."""
+            if callback.data == "refresh":
+                if not self._is_allowed(callback.from_user.id):
+                    await callback.answer("⛔ Access denied.", show_alert=True)
+                    return
+
+                await callback.message.edit_text("🔄 Updating proxy list...")
+                count = await self.manager.update()
+                await callback.message.edit_text(
+                    f"✅ Update complete!\n"
+                    f"Found <b>{count}</b> working proxies.\n"
+                    f"Use /proxies to get the list.",
+                    parse_mode="HTML"
+                )
+            elif callback.data.startswith("proxy_"):
+                # Show proxy details
+                parts = callback.data.replace("proxy_", "").split("_")
+                if len(parts) >= 2:
+                    ip = parts[0]
+                    port = parts[1]
+                    await callback.answer(
+                        f"Proxy: {ip}:{port}\n\n"
+                        f"Configure manually in Telegram Settings:\n"
+                        f"Settings > Advanced > Connection type > SOCKS5\n"
+                        f"Host: {ip}\n"
+                        f"Port: {port}",
+                        show_alert=True
+                    )
     
     def _is_allowed(self, user_id: int) -> bool:
         """Check if user is allowed to use the bot."""
@@ -168,15 +198,10 @@ class ProxyBot:
         buttons = []
 
         for proxy in proxies:
-            # Format: socks5://ip:port
-            proxy_url = f"socks5://{proxy['ip']}:{proxy['port']}"
-            # URL encode for tg://proxy link
-            encoded_url = urllib.parse.quote(proxy_url, safe='')
-            tg_link = f"tg://proxy?url={encoded_url}"
-
+            # Just show proxy info, no tg:// link (doesn't work for SOCKS5)
             buttons.append([InlineKeyboardButton(
                 text=f"⚡ {proxy.get('response_time', 0)}ms - {proxy['ip']}:{proxy['port']}",
-                url=tg_link
+                callback_data=f"proxy_{proxy['ip']}_{proxy['port']}"
             )])
 
         buttons.append([InlineKeyboardButton(
