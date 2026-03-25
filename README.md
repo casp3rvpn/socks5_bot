@@ -1,12 +1,14 @@
-# SOCKS5 Proxy Telegram Bot
+# Proxy Telegram Bot (SOCKS5 + MTProto)
 
-Telegram bot that scrapes public SOCKS5 proxy lists, tests them for connectivity, and provides the best working proxies to users.
+Telegram bot that scrapes public SOCKS5 and MTProto proxy lists, tests them for connectivity, determines their country, and provides the best working proxies to users.
 
 ## Features
 
 - 🔄 **Automatic Updates**: Scrapes and tests proxies every 10 minutes
 - ⚡ **Latency Testing**: Returns proxies with the lowest response time
-- 📲 **One-Click Setup**: Proxies formatted for automatic Telegram client configuration
+- 🌍 **Country Detection**: Shows country flag for each proxy (GeoIP lookup)
+- 📋 **SOCKS5 Support**: Manual configuration with host/port
+- ⚡ **MTProto Support**: One-click connect via Telegram proxy links
 - 💾 **Caching**: Stores working proxies for quick access
 - 🔒 **Access Control**: Optional user whitelist
 
@@ -53,44 +55,76 @@ python main.py
 | Command | Description |
 |---------|-------------|
 | `/start` | Welcome message and bot info |
-| `/proxies` | Get 5 best working proxies |
+| `/proxies` | Get 5 best SOCKS5 proxies with country flags |
+| `/mtproto` | Get 5 best MTProto proxies with country flags |
 | `/refresh` | Force update proxy list |
 | `/stats` | Show proxy statistics |
 | `/help` | Help information |
-| `/raw` | Get raw proxy list (10 proxies) |
+| `/raw` | Get raw SOCKS5 proxy list (10 proxies) |
 
-## Proxy Output Format
-
-The bot returns proxies in a format suitable for automatic Telegram client setup:
+## SOCKS5 Proxy Output Format
 
 ```
 🔥 Best SOCKS5 Proxies (lowest latency):
 
 ⏱ Updated: 2024-01-15 10:30:00
 
-1. ⚡ 150ms - 185.162.228.253:4145
-   📲 Add to Telegram
+How to configure:
+Settings > Advanced > Connection type > Use custom proxy > SOCKS5
 
-2. ⚡ 200ms - 51.158.108.135:59154
-   📲 Add to Telegram
+1. 🇩🇪 150ms
+   Host: 185.162.228.253
+   Port: 4145
+   Country: DE
 
-...
+2. 🇺🇸 200ms
+   Host: 51.158.108.135
+   Port: 59154
+   Country: US
+
+💡 Click on any proxy button to see details.
+📋 Copy host and port manually to Telegram settings.
 ```
 
-Clicking "Add to Telegram" opens a deep link (`tg://proxy?url=socks5://ip:port`) that automatically configures the proxy in the Telegram client.
+## MTProto Proxy Output Format
+
+```
+⚡ Best MTProto Proxies (lowest latency):
+
+⏱ Updated: 2024-01-15 10:30:00
+
+Click on 'Connect' button to auto-add to Telegram
+
+1. 🇳🇱 120ms
+   📲 Connect
+   Server: proxy.example.com
+   Port: 443
+   Country: NL
+
+2. 🇩🇪 180ms
+   📲 Connect
+   Server: mtproto.example.org
+   Port: 8443
+   Country: DE
+
+💡 Click 'Connect' to automatically add to Telegram.
+```
 
 ## Project Structure
 
 ```
 .
-├── main.py          # Entry point
-├── bot.py           # Telegram bot handlers
-├── manager.py       # Proxy management and scheduling
-├── tester.py        # Proxy connectivity testing
-├── scraper.py       # Proxy list scraping
-├── requirements.txt # Python dependencies
-├── .env.example     # Configuration template
-└── README.md        # This file
+├── main.py              # Entry point
+├── bot.py               # Telegram bot handlers
+├── manager.py           # Proxy management and scheduling
+├── tester.py            # SOCKS5 proxy testing
+├── scraper.py           # SOCKS5 proxy scraping
+├── mtproto_tester.py    # MTProto proxy testing
+├── mtproto_scraper.py   # MTProto proxy scraping
+├── geoip.py             # Country detection (GeoIP)
+├── requirements.txt     # Python dependencies
+├── .env.example         # Configuration template
+└── README.md            # This file
 ```
 
 ## Configuration Options
@@ -100,16 +134,39 @@ Clicking "Add to Telegram" opens a deep link (`tg://proxy?url=socks5://ip:port`)
 | `TELEGRAM_BOT_TOKEN` | - | Bot token from @BotFather |
 | `ALLOWED_USERS` | - | Comma-separated user IDs (public if empty) |
 | `UPDATE_INTERVAL` | 10 | Minutes between proxy updates |
-| `MAX_PROXIES` | 100 | Maximum proxies to keep |
+| `MAX_PROXIES` | 100 | Maximum proxies to keep (per type) |
 | `MAX_CONCURRENT_TESTS` | 50 | Concurrent proxy tests |
 | `CACHE_FILE` | proxies_cache.json | Cache file path |
 
+## Proxy Sources
+
+### SOCKS5 Sources
+- proxy-list.download
+- GitHub: ShiftyTR, monosans, mmpx12, proxifly, HyperBeast, clarketm, etc.
+- spys.me
+- socks-proxy.net
+
+### MTProto Sources
+- GitHub MTProto proxy lists
+- Telegram proxy channels
+
+## How It Works
+
+1. **Scraping**: Bot fetches proxies from multiple public sources
+2. **Testing**: Each proxy is tested for connectivity and response time
+3. **GeoIP Lookup**: Country is determined for each working proxy
+4. **Sorting**: Proxies are sorted by response time (lowest first)
+5. **Caching**: Results are saved to JSON cache file
+6. **Serving**: Users can request best proxies via bot commands
+
 ## Notes
 
-- The bot scrapes multiple public proxy sources
-- Only working SOCKS5 proxies are returned
-- Proxies are sorted by response time (lowest first)
-- Cache is updated after each successful scrape/test cycle
+- SOCKS5 proxies require manual configuration in Telegram
+- MTProto proxies support one-click connection via `https://t.me/proxy?...` links
+- Country flags are determined via GeoIP lookup (may add slight delay)
+- Proxies are tested every 10 minutes automatically
+- Only working proxies with lowest latency are provided
+- Cache persists between bot restarts
 
 ## License
 
