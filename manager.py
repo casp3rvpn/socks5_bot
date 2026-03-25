@@ -209,39 +209,37 @@ class ProxyManager:
     def format_for_telegram(self, proxy: Dict) -> str:
         """
         Format proxy for Telegram client import.
-        
-        Telegram proxy format:
-        socks5://ip:port or for MTProto proxy links
-        
-        For automatic setup, we use the format that can be 
-        directly imported via tg://proxy?url=
+        Returns URL-encoded format for tg://proxy link.
         """
-        # Standard SOCKS5 format for Telegram
-        return f"socks5://{proxy['ip']}:{proxy['port']}"
-    
+        import urllib.parse
+        proxy_url = f"socks5://{proxy['ip']}:{proxy['port']}"
+        return urllib.parse.quote(proxy_url, safe='')
+
     def format_proxies_for_telegram(self, count: int = 5) -> str:
         """
         Format best proxies for Telegram client import.
-        
         Returns formatted text with proxy links.
         """
         best = self.get_best_proxies(count)
-        
+
         if not best:
             return "❌ No working proxies available at the moment."
+
+        import urllib.parse
         
         lines = [
             "🔥 <b>Best SOCKS5 Proxies</b> (lowest latency):\n",
             f"⏱ Updated: {self.get_stats()['last_update_str']}\n"
         ]
-        
+
         for i, proxy in enumerate(best, 1):
             response_time = proxy.get('response_time', 0)
-            proxy_url = self.format_for_telegram(proxy)
-            
+            proxy_url = f"socks5://{proxy['ip']}:{proxy['port']}"
+            encoded_url = urllib.parse.quote(proxy_url, safe='')
+
             # Telegram proxy link format
-            tg_link = f"tg://proxy?url={proxy_url}"
-            
+            tg_link = f"tg://proxy?url={encoded_url}"
+
             lines.append(
                 f"{i}. ⚡ <b>{response_time}ms</b> - "
                 f"<code>{proxy['ip']}:{proxy['port']}</code>\n"

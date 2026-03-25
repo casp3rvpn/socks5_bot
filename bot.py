@@ -2,6 +2,7 @@
 Telegram bot for SOCKS5 proxy distribution.
 """
 import asyncio
+import urllib.parse
 from typing import Optional
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -165,21 +166,24 @@ class ProxyBot:
     def _create_proxy_keyboard(self, proxies: list) -> InlineKeyboardMarkup:
         """Create inline keyboard with proxy buttons."""
         buttons = []
-        
+
         for proxy in proxies:
-            proxy_url = self.manager.format_for_telegram(proxy)
-            tg_link = f"tg://proxy?url={proxy_url}"
-            
+            # Format: socks5://ip:port
+            proxy_url = f"socks5://{proxy['ip']}:{proxy['port']}"
+            # URL encode for tg://proxy link
+            encoded_url = urllib.parse.quote(proxy_url, safe='')
+            tg_link = f"tg://proxy?url={encoded_url}"
+
             buttons.append([InlineKeyboardButton(
                 text=f"⚡ {proxy.get('response_time', 0)}ms - {proxy['ip']}:{proxy['port']}",
                 url=tg_link
             )])
-        
+
         buttons.append([InlineKeyboardButton(
             text="🔄 Refresh",
             callback_data="refresh"
         )])
-        
+
         return InlineKeyboardMarkup(inline_keyboard=buttons)
     
     async def start_polling(self):
