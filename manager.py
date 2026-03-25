@@ -127,21 +127,21 @@ class ProxyManager:
         """Run a full update cycle: scrape and test both SOCKS5 and MTProto proxies."""
         if self._is_updating:
             return {'socks5': len(self._working_proxies), 'mtproto': len(self._working_mtproto)}
-        
+
         self._is_updating = True
         start_time = time.time()
-        
+
         try:
             # === SOCKS5 Proxies ===
             if debug:
                 print("🔍 Scraping SOCKS5 proxies...")
             socks5_scraped = await self.scraper.scrape_all(debug=debug)
-            
-            socks5_working = []
+
+            socks5_new = []
             if socks5_scraped:
                 if debug:
                     print(f"📦 Found {len(socks5_scraped)} SOCKS5 proxies, testing...")
-                
+
                 # Test SOCKS5 proxies
                 tested = 0
                 async def on_test_socks5(proxy, is_working, response_time):
@@ -152,17 +152,17 @@ class ProxyManager:
                             print(f"  ✓ {proxy['ip']}:{proxy['port']} - {response_time}ms")
                     if debug and tested % 500 == 0:
                         print(f"  Progress: {tested}/{len(socks5_scraped)} tested")
-                
-                socks5_working = await self.tester.test_multiple(socks5_scraped, callback=on_test_socks5)
-                
+
+                socks5_new = await self.tester.test_multiple(socks5_scraped, callback=on_test_socks5)
+
                 if debug:
-                    print(f"✅ SOCKS5: {len(socks5_working)} working")
-            
+                    print(f"✅ SOCKS5: {len(socks5_new)} working")
+
             # === MTProto Proxies ===
             if debug:
                 print("\n🔍 Scraping MTProto proxies...")
             mtproto_scraped = await self.mtproto_scraper.scrape_all(debug=debug)
-            
+
             # If scraping found nothing, generate from known servers
             if not mtproto_scraped:
                 if debug:
@@ -170,37 +170,46 @@ class ProxyManager:
                 mtproto_scraped = self.mtproto_scraper.generate_known_proxies()
                 if debug:
                     print(f"  📦 Generated {len(mtproto_scraped)} MTProto proxies")
-            
-            mtproto_working = []
+
+            mtproto_new = []
             if mtproto_scraped:
                 if debug:
                     print(f"  Testing {len(mtproto_scraped)} MTProto proxies...")
-                
+
                 # Test MTProto proxies
                 async def on_test_mtproto(proxy, is_working, response_time):
                     if is_working and debug:
                         print(f"  ✓ {proxy['server']}:{proxy['port']} - {response_time}ms")
-                
-                mtproto_working = await self.mtproto_tester.test_multiple(mtproto_scraped, callback=on_test_mtproto)
-                
+
+                mtproto_new = await self.mtproto_tester.test_multiple(mtproto_scraped, callback=on_test_mtproto)
+
                 if debug:
-                    print(f"✅ MTProto: {len(mtproto_working)} working")
-            
+                    print(f"✅ MTProto: {len(mtproto_new)} working")
+
             # === GeoIP Lookup ===
             if debug:
                 print("\n🌍 Looking up countries...")
-            
-            # Enrich SOCKS5 proxies with country info
-            if socks5_working:
-                socks5_enriched = await self.geoip.lookup_multiple(socks5_working)
+
+            # Enrich proxies with country info (in temporary variables)
+            socks5_enriched = []
+            mtproto_enriched = []
+
+            if socks5_new:
+                socks5_enriched = await self.geoip.lookup_multiple(socks5_new)
+
+            if mtproto_new:
+                mtproto_enriched = await self.geoip.lookup_multiple(mtproto_new)
+
+            # === Atomic Update ===
+            # Only update internal state after all testing is complete
+            # This ensures users can still access old proxies during update
+            if socks5_enriched:
                 self._working_proxies = sorted(
                     socks5_enriched,
                     key=lambda p: p.get('response_time', float('inf'))
                 )[:self.max_proxies]
-            
-            # Enrich MTProto proxies with country info
-            if mtproto_working:
-                mtproto_enriched = await self.geoip.lookup_multiple(mtproto_working)
+
+            if mtproto_enriched:
                 self._working_mtproto = sorted(
                     mtproto_enriched,
                     key=lambda p: p.get('response_time', float('inf'))
