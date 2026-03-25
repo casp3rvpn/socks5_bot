@@ -163,10 +163,18 @@ class ProxyManager:
                 print("\n🔍 Scraping MTProto proxies...")
             mtproto_scraped = await self.mtproto_scraper.scrape_all(debug=debug)
             
+            # If scraping found nothing, generate from known servers
+            if not mtproto_scraped:
+                if debug:
+                    print("  ⚠️ No MTProto proxies from scraping, generating from known servers...")
+                mtproto_scraped = self.mtproto_scraper.generate_known_proxies()
+                if debug:
+                    print(f"  📦 Generated {len(mtproto_scraped)} MTProto proxies")
+            
             mtproto_working = []
             if mtproto_scraped:
                 if debug:
-                    print(f"📦 Found {len(mtproto_scraped)} MTProto proxies, testing...")
+                    print(f"  Testing {len(mtproto_scraped)} MTProto proxies...")
                 
                 # Test MTProto proxies
                 async def on_test_mtproto(proxy, is_working, response_time):

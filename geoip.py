@@ -113,12 +113,19 @@ class GeoIP:
         Returns:
             Proxy dict with added 'country' and 'flag' fields
         """
-        ip = proxy['ip']
+        ip = proxy.get('ip') or proxy.get('server')
+        
+        if not ip:
+            result = proxy.copy()
+            result['country'] = 'Unknown'
+            result['flag'] = '🌐'
+            return result
+        
         country_code = await self.lookup_ip(ip)
         
         result = proxy.copy()
-        result['country'] = country_code
-        result['flag'] = self.get_flag(country_code) if country_code else UNKNOWN_FLAG
+        result['country'] = country_code if country_code else 'Unknown'
+        result['flag'] = self.get_flag(country_code) if country_code else '🌐'
         
         return result
     

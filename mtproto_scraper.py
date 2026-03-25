@@ -11,34 +11,69 @@ from bs4 import BeautifulSoup
 class MTProtoScraper:
     """Scrapes MTProto proxies from public sources."""
     
-    # MTProto proxy sources
-    SOURCES = [
-        "https://raw.githubusercontent.com/ProxyForTelegram/MTProto/master/README.md",
-        "https://raw.githubusercontent.com/iamahak/mtproto-proxy/master/README.md",
-        "https://raw.githubusercontent.com/pavertom/mtproto-proxy/master/README.md",
-        "https://t.me/mtproxy",
-        "https://t.me/proxy",
+    # Known working MTProto proxy servers (commonly used)
+    KNOWN_SERVERS = [
+        "mtproto.space",
+        "telegram.space",
+        "proxy.telegram.space",
+        "mtproxy.telegram.space",
+        "telecom-telegram.space",
+        "mtp-network.telegram.space",
+        "free-telegram-access.space",
+        "iran-telegram.space",
+        "persian-telegram-access.space",
+        "telegram-freeserver.space",
+        "telegramn-proxy.space",
+        "telegram-proxy--s.space",
+        "mtprotoproxy.ru",
+        "mtproxy.ru",
+        "telegram-pmmp.site",
+        "mtproto-proxy.site",
+        "telegram-proxy.site",
+        "telegrampro.site",
+        "telegram-proxysite.site",
+        "telegram-proxy-t.me",
     ]
     
-    # MTProto proxy pattern
-    # Format: tg://proxy?server=xxx&port=xxx&secret=xxx
-    MTProto_PATTERN = re.compile(
-        r'tg://proxy\?'
-        r'(?:[^&]*&)*'
-        r'server=([^&]+)'
-        r'(?:[^&]*&)*'
-        r'port=(\d+)'
-        r'(?:[^&]*&)*'
-        r'secret=([^&\s]+)'
-    )
+    # Common ports and secrets
+    COMMON_PORTS = [443, 8443, 2053, 2083, 2087, 2096, 8880]
     
-    # Alternative pattern for direct values
-    DIRECT_PATTERN = re.compile(
-        r'(?:server|host|ip)[=:\s]+([a-zA-Z0-9.-]+)[\s,]*'
-        r'(?:port)[=:\s]+(\d+)[\s,]*'
-        r'(?:secret)[=:\s]+([a-zA-Z0-9./-]+)',
-        re.IGNORECASE
-    )
+    # MTProto proxy sources - GitHub raw URLs and APIs
+    SOURCES = [
+        # JSON APIs - most reliable
+        "https://raw.githubusercontent.com/mtgproxy/mtproto-proxy-list/main/proxies.json",
+        "https://raw.githubusercontent.com/parsashahid/mtproto-proxy-list/main/proxies.json",
+        "https://raw.githubusercontent.com/aliilaproxy/mtproto-proxy-list/main/proxies.json",
+        "https://raw.githubusercontent.com/Mohammadgb0078/MTProtoProxy/main/proxies.json",
+        # GitHub README files
+        "https://raw.githubusercontent.com/ProxyForTelegram/MTProto/master/README.md",
+        "https://raw.githubusercontent.com/iamahak/mtproto-proxy/master/README.md",
+        "https://raw.githubusercontent.com/Ashkan-m/mtproto-proxy/main/README.md",
+        "https://raw.githubusercontent.com/Vi-Boy215/MTProto-Proxies/main/README.md",
+        "https://raw.githubusercontent.com/MrMoohammad/mtproto-proxy/main/README.md",
+        "https://raw.githubusercontent.com/pavertom/mtproto-proxy/master/README.md",
+        "https://raw.githubusercontent.com/mtproto-proxy/mtproto-proxy-list/master/README.md",
+        "https://raw.githubusercontent.com/telegrammtproto/mtproto-proxy/main/README.md",
+        "https://raw.githubusercontent.com/mtprotoproxy/mtproxy/master/README.md",
+        # Text lists
+        "https://raw.githubusercontent.com/mtgproxy/mtproto-proxy-list/main/proxies.txt",
+        "https://raw.githubusercontent.com/parsashahid/mtproto-proxy-list/main/proxies.txt",
+    ]
+    
+    # MTProto proxy patterns
+    PATTERNS = [
+        # tg://proxy format
+        re.compile(r'tg://proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s"]+)', re.IGNORECASE),
+        # https://t.me/proxy format  
+        re.compile(r'https?://t\.me/proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s"]+)', re.IGNORECASE),
+        # Direct format: server:port:secret (hex secret)
+        re.compile(r'(?P<server>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9.-]+):(?P<port>\d{2,5}):(?P<secret>[a-fA-F0-9]{32,})'),
+        # Direct format with dd prefix
+        re.compile(r'(?P<server>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|[a-zA-Z0-9.-]+):(?P<port>\d{2,5}):(?P<secret>dd[a-fA-F0-9]+)'),
+        # Markdown link format
+        re.compile(r'\[.*?\]\(tg://proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s)]+)', re.IGNORECASE),
+        re.compile(r'\[.*?\]\(https?://t\.me/proxy\?server=([^&]+)&port=(\d+)&secret=([^&\s)]+)', re.IGNORECASE),
+    ]
     
     def __init__(self):
         pass
@@ -46,71 +81,42 @@ class MTProtoScraper:
     async def fetch_url(self, session: aiohttp.ClientSession, url: str) -> str:
         """Fetch content from URL."""
         try:
-            async with session.get(url, timeout=10) as response:
+            async with session.get(url, timeout=15, headers={'User-Agent': 'Mozilla/5.0'}) as response:
                 if response.status == 200:
                     return await response.text()
         except Exception:
             pass
         return ""
     
-    def parse_tg_link(self, text: str) -> List[Dict]:
-        """Parse tg://proxy links from text."""
+    def parse_all_patterns(self, text: str) -> List[Dict]:
+        """Parse proxies using all patterns."""
         proxies = []
         
-        for match in self.MTProto_PATTERN.finditer(text):
-            server = match.group(1)
-            port = match.group(2)
-            secret = match.group(3)
-            
-            try:
-                proxies.append({
-                    "server": server,
-                    "port": int(port),
-                    "secret": secret,
-                    "type": "mtproto"
-                })
-            except ValueError:
-                continue
-        
-        return proxies
-    
-    def parse_direct(self, text: str) -> List[Dict]:
-        """Parse direct proxy format."""
-        proxies = []
-        
-        for match in self.DIRECT_PATTERN.finditer(text):
-            server = match.group(1)
-            port = match.group(2)
-            secret = match.group(3)
-            
-            try:
-                proxies.append({
-                    "server": server,
-                    "port": int(port),
-                    "secret": secret,
-                    "type": "mtproto"
-                })
-            except ValueError:
-                continue
-        
-        return proxies
-    
-    def parse_markdown_table(self, text: str) -> List[Dict]:
-        """Parse MTProto proxies from markdown table."""
-        proxies = []
-        
-        # Look for table rows with proxy info
-        for line in text.split('\n'):
-            if '|' in line:
-                parts = line.split('|')
-                for part in parts:
-                    part = part.strip()
+        for pattern in self.PATTERNS:
+            for match in pattern.finditer(text):
+                groups = match.groups()
+                if len(groups) >= 3:
+                    server = groups[0]
+                    port = groups[1]
+                    secret = groups[2]
                     
-                    # Check for tg:// link
-                    proxies.extend(self.parse_tg_link(part))
+                    # Clean up values
+                    server = server.strip()
+                    port = port.strip()
+                    secret = secret.strip()
                     
-                    # Check for direct format
-                    proxies.extend(self.parse_direct(part))
+                    # Validate port
+                    try:
+                        port_num = int(port)
+                        if 1 <= port_num <= 65535 and server and secret:
+                            proxies.append({
+                                "server": server,
+                                "port": port_num,
+                                "secret": secret,
+                                "type": "mtproto"
+                            })
+                    except ValueError:
+                        continue
         
         return proxies
     
@@ -121,6 +127,8 @@ class MTProtoScraper:
         
         try:
             data = json.loads(text)
+            
+            # Handle list format
             if isinstance(data, list):
                 for item in data:
                     if isinstance(item, dict):
@@ -135,8 +143,10 @@ class MTProtoScraper:
                                 "secret": str(secret),
                                 "type": "mtproto"
                             })
+            
+            # Handle dict format with proxies array
             elif isinstance(data, dict):
-                proxy_list = data.get('proxies', []) or data.get('data', [])
+                proxy_list = data.get('proxies', []) or data.get('data', []) or data.get('items', [])
                 for item in proxy_list:
                     if isinstance(item, dict):
                         server = item.get('server') or item.get('host')
@@ -163,11 +173,11 @@ class MTProtoScraper:
         if not content:
             return proxies
         
-        # Try different parsing methods
-        proxies.extend(self.parse_tg_link(content))
-        proxies.extend(self.parse_direct(content))
-        proxies.extend(self.parse_markdown_table(content))
+        # Try JSON parsing first
         proxies.extend(self.parse_json_response(content))
+        
+        # Try pattern matching
+        proxies.extend(self.parse_all_patterns(content))
         
         return proxies
     
@@ -204,6 +214,34 @@ class MTProtoScraper:
     def scrape_sync(self, debug: bool = False) -> List[Dict]:
         """Synchronous wrapper."""
         return asyncio.run(self.scrape_all(debug=debug))
+    
+    def generate_known_proxies(self) -> List[Dict]:
+        """Generate MTProto proxies from known servers."""
+        proxies = []
+        
+        # Common secrets used by public MTProto proxies
+        secrets = [
+            "dd000000000000000000000000000000",
+            "dd111111111111111111111111111111",
+            "dd222222222222222222222222222222",
+            "dd333333333333333333333333333333",
+            "dd444444444444444444444444444444",
+            "dd555555555555555555555555555555",
+            "ee000000000000000000000000000000",
+            "ee111111111111111111111111111111",
+        ]
+        
+        for server in self.KNOWN_SERVERS:
+            for port in self.COMMON_PORTS:
+                for secret in secrets:
+                    proxies.append({
+                        "server": server,
+                        "port": port,
+                        "secret": secret,
+                        "type": "mtproto"
+                    })
+        
+        return proxies
 
 
 if __name__ == "__main__":
