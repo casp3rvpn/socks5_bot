@@ -3,7 +3,6 @@ Proxy tester module - tests SOCKS5 proxies for connectivity and response time.
 """
 import asyncio
 import time
-import socket
 from typing import List, Dict, Optional, Tuple
 import aiohttp
 from aiohttp_socks import ProxyConnector
@@ -12,75 +11,18 @@ from aiohttp_socks import ProxyConnector
 class ProxyTester:
     """Tests SOCKS5 proxies for functionality and measures response time."""
     
-    # Test URLs to check proxy connectivity
+    # Test URLs - use fast endpoints
     TEST_URLS = [
-        "https://httpbin.org/ip",
         "https://api.ipify.org?format=json",
-        "https://ifconfig.me/ip",
-        "https://google.com",
+        "https://httpbin.org/ip",
     ]
     
-    # Timeout for proxy testing (seconds)
-    TIMEOUT = 10
+    # Reduced timeout for faster testing
+    TIMEOUT = 5
     
-    def __init__(self, max_concurrent: int = 50):
+    def __init__(self, max_concurrent: int = 100):
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
-    
-    async def test_proxy_simple(
-        self, 
-        proxy: Dict
-    ) -> Tuple[bool, float]:
-        """
-        Test proxy using simple socket connection.
-        This is more reliable than HTTP requests.
-        """
-        ip = proxy['ip']
-        port = proxy['port']
-        
-        async with self.semaphore:
-            start_time = time.time()
-            
-            try:
-                # Try to connect via SOCKS5
-                connector = ProxyConnector.from_url(
-                    f"socks5://{ip}:{port}"
-                )
-                
-                async with aiohttp.ClientSession(
-                    connector=connector
-                ) as session:
-                    # Try multiple URLs
-                    for test_url in self.TEST_URLS:
-                        try:
-                            async with session.get(
-                                test_url,
-                                allow_redirects=True,
-                                timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
-                            ) as response:
-                                if response.status in (200, 301, 302):
-                                    elapsed = (time.time() - start_time) * 1000
-                                    return True, round(elapsed, 2)
-                        except asyncio.TimeoutError:
-                            continue
-                        except Exception as e:
-                            # Log first few errors for debugging
-                            if not hasattr(self, '_error_count'):
-                                self._error_count = 0
-                            if self._error_count < 5:
-                                self._error_count += 1
-                                import logging
-                                logging.warning(f"Test error ({type(e).__name__}): {e}")
-                            continue
-                
-                return False, float('inf')
-                        
-            except asyncio.TimeoutError:
-                return False, float('inf')
-            except Exception as e:
-                import logging
-                logging.warning(f"Connection error ({type(e).__name__}): {e}")
-                return False, float('inf')
     
     async def test_proxy(
         self, 
@@ -88,28 +30,42 @@ class ProxyTester:
         test_url: Optional[str] = None
     ) -> Tuple[bool, float]:
         """
-        Test a single proxy.
-        
-        Returns:
-            Tuple of (is_working, response_time_ms)
+        Test proxy with single fast request.
         """
-        return await self.test_proxy_simple(proxy)
+        url = test_url or self.TEST_URLS[0]
+        
+        async with self.semaphore:
+            start_time = time.time()
+            
+            try:
+                connector = ProxyConnector.from_url(f"socks5://{proxy['ip']}:{proxy['port']}")
+                
+                async with aiohttp.ClientSession(connector=connector) as session:
+                    async with session.get(
+                        url,
+                        timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
+                    ) as response:
+                        if response.status == 200:
+                            elapsed = (time.time() - start_time) * 1000
+                            return True, round(elapsed, 2)
+                
+                return False, float('inf')
+                        
+            except Exception:
+                return False, float('inf')
     
     async def test_proxy_with_retry(
         self, 
         proxy: Dict,
-        retries: int = 2
+        retries: int = 1
     ) -> Tuple[bool, float]:
-        """Test proxy with retries using different test URLs."""
-        for i in range(retries):
+        """Test proxy with minimal retries."""
+        for i in range(retries + 1):
             test_url = self.TEST_URLS[i % len(self.TEST_URLS)]
             is_working, response_time = await self.test_proxy(proxy, test_url)
             
             if is_working:
                 return True, response_time
-            
-            if i < retries - 1:
-                await asyncio.sleep(0.5)
         
         return False, float('inf')
     
@@ -118,16 +74,7 @@ class ProxyTester:
         proxies: List[Dict],
         callback=None
     ) -> List[Dict]:
-        """
-        Test multiple proxies concurrently.
-        
-        Args:
-            proxies: List of proxy dicts
-            callback: Optional callback function(proxy, is_working, response_time)
-        
-        Returns:
-            List of working proxies with response time added
-        """
+        """Test multiple proxies concurrently."""
         working_proxies = []
         
         async def test_with_callback(proxy: Dict) -> Optional[Dict]:

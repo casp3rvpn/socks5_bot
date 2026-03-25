@@ -113,12 +113,7 @@ class ProxyManager:
             pass
     
     async def update(self, debug: bool = False) -> int:
-        """
-        Run a full update cycle: scrape and test proxies.
-        
-        Returns:
-            Number of working proxies found
-        """
+        """Run a full update cycle: scrape and test proxies."""
         if self._is_updating:
             return len(self._working_proxies)
         
@@ -126,17 +121,9 @@ class ProxyManager:
         
         try:
             # Scrape new proxies
-            if debug:
-                print("🔍 Scraping proxies...")
             scraped = await self.scraper.scrape_all(debug=debug)
             
-            if debug:
-                print(f"📦 Scraped {len(scraped)} proxies, testing...")
-            
             if not scraped:
-                # If scraping failed, try to use cached proxies
-                if debug:
-                    print("⚠️ No proxies scraped, using cache")
                 self.load_from_cache()
                 return len(self._working_proxies)
             
@@ -145,13 +132,13 @@ class ProxyManager:
             async def on_test(proxy, is_working, response_time):
                 nonlocal tested
                 tested += 1
-                if debug and is_working:
+                if debug and is_working and tested <= 10:
                     print(f"  ✓ {proxy['ip']}:{proxy['port']} - {response_time}ms")
             
             working = await self.tester.test_multiple(scraped, callback=on_test)
             
             if debug:
-                print(f"✅ Tested {tested} proxies, {len(working)} working")
+                print(f"✅ Tested {tested}, {len(working)} working")
             
             # Keep best proxies
             if working:
