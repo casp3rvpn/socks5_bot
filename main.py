@@ -74,8 +74,8 @@ async def main():
     )
     
     # Setup update callback
-    async def on_update(count):
-        logger.info(f"✅ Proxy update complete: {count} working proxies found")
+    async def on_update(result):
+        logger.info(f"✅ Update complete: {result['socks5']} SOCKS5, {result['mtproto']} MTProto")
 
     manager.set_update_callback(on_update)
 

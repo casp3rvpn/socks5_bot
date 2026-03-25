@@ -36,44 +36,74 @@ class ProxyBot:
             """Handle /start command."""
             if not self._is_allowed(message.from_user.id):
                 return
-            
+
             await message.answer(
-                "👋 <b>Welcome to SOCKS5 Proxy Bot!</b>\n\n"
-                "I provide working SOCKS5 proxies with the lowest latency.\n\n"
+                "👋 <b>Welcome to Proxy Bot!</b>\n\n"
+                "I provide working SOCKS5 and MTProto proxies with lowest latency.\n\n"
                 "Commands:\n"
-                "📋 /proxies - Get 5 best proxies\n"
+                "📋 /proxies - Get 5 best SOCKS5 proxies\n"
+                "⚡ /mtproto - Get 5 best MTProto proxies\n"
                 "🔄 /refresh - Force update proxy list\n"
-                "📊 /stats - Show proxy statistics\n"
+                "📊 /stats - Show statistics\n"
                 "❓ /help - Help information",
                 parse_mode="HTML"
             )
         
         @self.dp.message(Command("proxies"))
         async def cmd_proxies(message: types.Message):
-            """Handle /proxies command - return best proxies."""
+            """Handle /proxies command - return best SOCKS5 proxies."""
             if not self._is_allowed(message.from_user.id):
                 await message.answer("⛔ Access denied.")
                 return
-            
+
             if self.manager.is_updating:
                 await message.answer("⏳ Currently updating proxies, please wait...")
                 return
-            
+
             if not self.manager.working_proxies:
                 await message.answer(
-                    "⚠️ No working proxies available yet.\n"
+                    "⚠️ No working SOCKS5 proxies available yet.\n"
                     "Use /refresh to force an update."
                 )
                 return
-            
+
             # Create inline keyboard with proxy buttons
             best = self.manager.get_best_proxies(5)
-            keyboard = self._create_proxy_keyboard(best)
-            
+            keyboard = self._create_socks5_keyboard(best)
+
             await message.answer(
                 self.manager.format_proxies_for_telegram(5),
                 parse_mode="HTML",
                 reply_markup=keyboard
+            )
+
+        @self.dp.message(Command("mtproto"))
+        async def cmd_mtproto(message: types.Message):
+            """Handle /mtproto command - return best MTProto proxies."""
+            if not self._is_allowed(message.from_user.id):
+                await message.answer("⛔ Access denied.")
+                return
+
+            if self.manager.is_updating:
+                await message.answer("⏳ Currently updating proxies, please wait...")
+                return
+
+            if not self.manager.working_mtproto:
+                await message.answer(
+                    "⚠️ No working MTProto proxies available yet.\n"
+                    "Use /refresh to force an update."
+                )
+                return
+
+            # Create inline keyboard with MTProto buttons
+            best = self.manager.get_best_mtproto(5)
+            keyboard = self._create_mtproto_keyboard(best)
+
+            await message.answer(
+                self.manager.format_mtproto_for_telegram(5),
+                parse_mode="HTML",
+                reply_markup=keyboard,
+                disable_web_page_preview=True
             )
         
         @self.dp.message(Command("refresh"))
@@ -99,36 +129,42 @@ class ProxyBot:
             if not self._is_allowed(message.from_user.id):
                 await message.answer("⛔ Access denied.")
                 return
-            
+
             stats = self.manager.get_stats()
-            
+
             await message.answer(
                 f"📊 <b>Proxy Statistics</b>\n\n"
-                f"📦 Working proxies: <b>{stats['total_working']}</b>\n"
+                f"📦 SOCKS5 proxies: <b>{stats['total_socks5']}</b>\n"
+                f"⚡ MTProto proxies: <b>{stats['total_mtproto']}</b>\n"
                 f"⏱ Last update: <b>{stats['last_update_str']}</b>\n"
                 f"🔄 Update interval: <b>{stats['update_interval_minutes']} min</b>\n"
                 f"⚡ Currently updating: <b>{'Yes' if stats['is_updating'] else 'No'}</b>",
                 parse_mode="HTML"
             )
-        
+
         @self.dp.message(Command("help"))
         async def cmd_help(message: types.Message):
             """Handle /help command."""
             if not self._is_allowed(message.from_user.id):
                 await message.answer("⛔ Access denied.")
                 return
-            
+
             await message.answer(
                 "❓ <b>Help</b>\n\n"
-                "This bot provides working SOCKS5 proxies for Telegram.\n\n"
-                "<b>How to use:</b>\n"
-                "1. Use /proxies to get 5 best proxies\n"
-                "2. Click 'Add to Telegram' button to auto-configure\n"
-                "3. Or manually copy proxy details\n\n"
-                "<b>Proxy format:</b>\n"
-                "<code>socks5://ip:port</code>\n\n"
-                "Proxies are automatically updated every 10 minutes.\n"
-                "Only working proxies with lowest latency are provided.",
+                "This bot provides working SOCKS5 and MTProto proxies.\n\n"
+                "<b>Commands:</b>\n"
+                "📋 /proxies - Get 5 best SOCKS5 proxies\n"
+                "⚡ /mtproto - Get 5 best MTProto proxies\n"
+                "🔄 /refresh - Force update proxy list\n"
+                "📊 /stats - Show statistics\n"
+                "❓ /help - Help information\n\n"
+                "<b>SOCKS5 Setup:</b>\n"
+                "Settings > Advanced > Connection type > SOCKS5\n"
+                "Copy host and port from /proxies\n\n"
+                "<b>MTProto Setup:</b>\n"
+                "Click 'Connect' button in /mtproto\n"
+                "Or copy server, port, secret manually\n\n"
+                "Proxies update every 10 minutes automatically.",
                 parse_mode="HTML"
             )
         
@@ -165,25 +201,26 @@ class ProxyBot:
                     return
 
                 await callback.message.edit_text("🔄 Updating proxy list...")
-                count = await self.manager.update()
+                result = await self.manager.update()
                 await callback.message.edit_text(
                     f"✅ Update complete!\n"
-                    f"Found <b>{count}</b> working proxies.\n"
-                    f"Use /proxies to get the list.",
+                    f"📦 SOCKS5: <b>{result['socks5']}</b>\n"
+                    f"⚡ MTProto: <b>{result['mtproto']}</b>\n\n"
+                    f"Use /proxies or /mtproto to get the list.",
                     parse_mode="HTML"
                 )
-            elif callback.data.startswith("proxy_"):
-                # Show proxy details
-                parts = callback.data.replace("proxy_", "").split("_")
+            elif callback.data.startswith("socks5_"):
+                # Show SOCKS5 proxy details
+                parts = callback.data.replace("socks5_", "").split("_")
                 if len(parts) >= 2:
                     ip = parts[0]
                     port = parts[1]
                     await callback.answer(
-                        f"Proxy: {ip}:{port}\n\n"
-                        f"Configure manually in Telegram Settings:\n"
-                        f"Settings > Advanced > Connection type > SOCKS5\n"
+                        f"SOCKS5 Proxy:\n\n"
                         f"Host: {ip}\n"
-                        f"Port: {port}",
+                        f"Port: {port}\n\n"
+                        f"Configure in Telegram:\n"
+                        f"Settings > Advanced > Connection type > SOCKS5",
                         show_alert=True
                     )
     
@@ -193,15 +230,39 @@ class ProxyBot:
             return True
         return user_id in self.allowed_users
     
-    def _create_proxy_keyboard(self, proxies: list) -> InlineKeyboardMarkup:
-        """Create inline keyboard with proxy buttons."""
+    def _create_socks5_keyboard(self, proxies: list) -> InlineKeyboardMarkup:
+        """Create inline keyboard with SOCKS5 proxy buttons."""
         buttons = []
 
         for proxy in proxies:
-            # Just show proxy info, no tg:// link (doesn't work for SOCKS5)
+            flag = proxy.get('flag', '🌐')
+            country = proxy.get('country', 'Unknown')
             buttons.append([InlineKeyboardButton(
-                text=f"⚡ {proxy.get('response_time', 0)}ms - {proxy['ip']}:{proxy['port']}",
-                callback_data=f"proxy_{proxy['ip']}_{proxy['port']}"
+                text=f"{flag} {proxy.get('response_time', 0)}ms - {proxy['ip']}:{proxy['port']}",
+                callback_data=f"socks5_{proxy['ip']}_{proxy['port']}"
+            )])
+
+        buttons.append([InlineKeyboardButton(
+            text="🔄 Refresh",
+            callback_data="refresh"
+        )])
+
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    def _create_mtproto_keyboard(self, proxies: list) -> InlineKeyboardMarkup:
+        """Create inline keyboard with MTProto proxy buttons."""
+        import urllib.parse
+        buttons = []
+
+        for proxy in proxies:
+            flag = proxy.get('flag', '🌐')
+            # Create MTProto link
+            secret_encoded = urllib.parse.quote(proxy['secret'], safe='')
+            tg_link = f"https://t.me/proxy?server={proxy['server']}&port={proxy['port']}&secret={secret_encoded}"
+            
+            buttons.append([InlineKeyboardButton(
+                text=f"{flag} {proxy.get('response_time', 0)}ms - {proxy['server']}:{proxy['port']}",
+                url=tg_link
             )])
 
         buttons.append([InlineKeyboardButton(
