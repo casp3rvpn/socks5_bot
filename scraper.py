@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 class ProxyScraper:
     """Scrapes SOCKS5 proxies from multiple public sources."""
     
-    # List of public proxy sources
+    # List of public proxy sources - raw lists
     SOURCES = [
         "https://www.proxy-list.download/api/v1/get?type=socks5",
         "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/socks5.txt",
@@ -19,12 +19,22 @@ class ProxyScraper:
         "https://raw.githubusercontent.com/mmpx12/proxy-list/master/socks5.txt",
         "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/socks5/data.txt",
         "https://raw.githubusercontent.com/HyperBeast/proxy-list/main/socks5.txt",
+        "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
+        "https://raw.githubusercontent.com/sunny9577/proxy-scraper/master/proxies.txt",
+        "https://raw.githubusercontent.com/UserR3X/proxy-list/main/online/socks5.txt",
+        "https://raw.githubusercontent.com/proxy4parsing/proxy/main/socks5.txt",
+        "https://raw.githubusercontent.com/roosterkid/openproxylist/main/SOCKS5_RAW.txt",
     ]
     
     SCRAPE_URLS = [
         "https://spys.me/socks.txt",
         "https://www.socks-proxy.net/",
-        "https://proxylist.geonode.com/api/proxy-list?limit=500&protocols=socks5",
+    ]
+    
+    # API endpoints that return JSON
+    API_URLS = [
+        "https://proxylist.geonode.com/api/proxy-list?limit=500&protocols=socks5&sort_by=lastChecked&sort_type=desc",
+        "https://api.proxyscrape.com/v2/?request=get&protocol=socks5&timeout=10000&country=all&ssl=all&anonymity=all",
     ]
     
     def __init__(self):
@@ -106,9 +116,9 @@ class ProxyScraper:
             if isinstance(data, list):
                 for item in data:
                     if isinstance(item, dict):
-                        ip = item.get('ip') or item.get('proxy_ip')
-                        port = item.get('port') or item.get('proxy_port')
-                        protocol = item.get('protocol', '').lower()
+                        ip = item.get('ip') or item.get('proxy_ip') or item.get('Ip') or item.get('IP')
+                        port = item.get('port') or item.get('proxy_port') or item.get('Port') or item.get('PORT')
+                        protocol = str(item.get('protocol', '') or item.get('Protocol', '')).lower()
                         
                         if ip and port and 'socks5' in protocol:
                             try:
@@ -119,13 +129,16 @@ class ProxyScraper:
                                 })
                             except (ValueError, TypeError):
                                 continue
+                    elif isinstance(item, str):
+                        # Handle simple IP:PORT strings in list
+                        proxies.extend(self.parse_ip_port(item))
             elif isinstance(data, dict):
                 proxy_list = data.get('proxies', []) or data.get('data', [])
                 for item in proxy_list:
                     if isinstance(item, dict):
-                        ip = item.get('ip') or item.get('proxy_ip')
-                        port = item.get('port') or item.get('proxy_port')
-                        protocol = item.get('protocol', '').lower()
+                        ip = item.get('ip') or item.get('proxy_ip') or item.get('Ip')
+                        port = item.get('port') or item.get('proxy_port') or item.get('Port')
+                        protocol = str(item.get('protocol', '') or item.get('Protocol', '')).lower()
                         
                         if ip and port and 'socks5' in protocol:
                             try:
@@ -137,7 +150,9 @@ class ProxyScraper:
                             except (ValueError, TypeError):
                                 continue
         except json.JSONDecodeError:
-            pass
+            # Try parsing as plain text (IP:PORT per line)
+            for line in text.strip().split('\n'):
+                proxies.extend(self.parse_ip_port(line))
         return proxies
     
     async def scrape_source(self, session: aiohttp.ClientSession, url: str) -> List[Dict]:
@@ -166,7 +181,7 @@ class ProxyScraper:
         
         async with aiohttp.ClientSession() as session:
             tasks = []
-            urls = self.SOURCES + self.SCRAPE_URLS
+            urls = self.SOURCES + self.SCRAPE_URLS + self.API_URLS
             
             for url in urls:
                 tasks.append(self.scrape_source(session, url))

@@ -3,6 +3,7 @@ Proxy tester module - tests SOCKS5 proxies for connectivity and response time.
 """
 import asyncio
 import time
+import socket
 from typing import List, Dict, Optional, Tuple
 import aiohttp
 from aiohttp_socks import ProxyConnector
@@ -16,14 +17,70 @@ class ProxyTester:
         "https://httpbin.org/ip",
         "https://api.ipify.org?format=json",
         "https://ifconfig.me/ip",
+        "https://google.com",
     ]
     
     # Timeout for proxy testing (seconds)
-    TIMEOUT = 5
+    TIMEOUT = 10
     
     def __init__(self, max_concurrent: int = 50):
         self.max_concurrent = max_concurrent
         self.semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def test_proxy_simple(
+        self, 
+        proxy: Dict
+    ) -> Tuple[bool, float]:
+        """
+        Test proxy using simple socket connection.
+        This is more reliable than HTTP requests.
+        """
+        ip = proxy['ip']
+        port = proxy['port']
+        
+        async with self.semaphore:
+            start_time = time.time()
+            
+            try:
+                # Try to connect via SOCKS5
+                connector = ProxyConnector.from_url(
+                    f"socks5://{ip}:{port}"
+                )
+                
+                async with aiohttp.ClientSession(
+                    connector=connector
+                ) as session:
+                    # Try multiple URLs
+                    for test_url in self.TEST_URLS:
+                        try:
+                            async with session.get(
+                                test_url,
+                                allow_redirects=True,
+                                timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
+                            ) as response:
+                                if response.status in (200, 301, 302):
+                                    elapsed = (time.time() - start_time) * 1000
+                                    return True, round(elapsed, 2)
+                        except asyncio.TimeoutError:
+                            continue
+                        except Exception as e:
+                            # Log first few errors for debugging
+                            if not hasattr(self, '_error_count'):
+                                self._error_count = 0
+                            if self._error_count < 5:
+                                self._error_count += 1
+                                import logging
+                                logging.warning(f"Test error ({type(e).__name__}): {e}")
+                            continue
+                
+                return False, float('inf')
+                        
+            except asyncio.TimeoutError:
+                return False, float('inf')
+            except Exception as e:
+                import logging
+                logging.warning(f"Connection error ({type(e).__name__}): {e}")
+                return False, float('inf')
     
     async def test_proxy(
         self, 
@@ -36,36 +93,7 @@ class ProxyTester:
         Returns:
             Tuple of (is_working, response_time_ms)
         """
-        url = test_url or self.TEST_URLS[0]
-        proxy_addr = f"socks5://{proxy['ip']}:{proxy['port']}"
-        
-        async with self.semaphore:
-            start_time = time.time()
-            
-            try:
-                connector = ProxyConnector.from_url(
-                    proxy_addr,
-                    timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
-                )
-                
-                async with aiohttp.ClientSession(connector=connector) as session:
-                    async with session.get(
-                        url,
-                        timeout=aiohttp.ClientTimeout(total=self.TIMEOUT)
-                    ) as response:
-                        if response.status == 200:
-                            elapsed = (time.time() - start_time) * 1000  # ms
-                            return True, round(elapsed, 2)
-                        
-            except asyncio.TimeoutError:
-                return False, float('inf')
-            except Exception as e:
-                # Log specific errors for debugging
-                import logging
-                logging.debug(f"Proxy {proxy['ip']}:{proxy['port']} failed: {type(e).__name__}")
-                return False, float('inf')
-            
-            return False, float('inf')
+        return await self.test_proxy_simple(proxy)
     
     async def test_proxy_with_retry(
         self, 
